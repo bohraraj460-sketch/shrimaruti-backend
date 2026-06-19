@@ -7,7 +7,6 @@ const mongoose = require('mongoose');
 
 const app = express();
 app.use(cors());
-// Yahan humne data limit badha di hai HD banners ke liye
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -26,9 +25,8 @@ const mongoURI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/shrimaruti"
 mongoose.connect(mongoURI)
   .then(() => console.log("MongoDB Connected Successfully!"))
   .catch((err) => console.log("Database Connection Error: ", err));
-// ==========================================
-// --- MONGOOSE SCHEMAS (STOCK FIXED) ---
-// ==========================================
+
+// --- MONGOOSE SCHEMAS ---
 const productSchema = new mongoose.Schema({
     title: String, 
     price: Number, 
@@ -36,7 +34,7 @@ const productSchema = new mongoose.Schema({
     desc: String, 
     category: String, 
     discount: String,
-    stock: { type: Number, default: 0 }, // 🎯 SOLVED: Stock field integrated for Sold Out checking
+    stock: { type: Number, default: 0 }, 
     reviews: [{ user: String, text: String, rating: Number }]
 });
 const Product = mongoose.model('Product', productSchema);
@@ -46,63 +44,51 @@ const orderSchema = new mongoose.Schema({
 });
 const Order = mongoose.model('Order', orderSchema);
 
-
-// ==========================================
 // --- CORE ADMIN ROUTE ---
-// ==========================================
 app.post('/api/admin/verify', (req, res) => {
     if (req.body.passcode === "Admin2026") res.json({ success: true });
     else res.status(401).json({ success: false, message: "Invalid Passcode" });
 });
 
-// ==========================================
 // --- PRODUCTS ENGINE ROUTES ---
-// ==========================================
 app.get('/api/products', async (req, res) => { res.json(await Product.find()); });
 
-// API: Add products with stock configuration
 app.post('/api/products', upload.single('image'), async (req, res) => {
-    const newProduct = new Product({
-        title: req.body.title, 
-        price: Number(req.body.price),
-        image: req.file ? `https://shrimaruti-backend.onrender.com/uploads/${req.file.filename}` : '',
-        desc: req.body.desc || "Premium quality product.",
-        category: req.body.category || 'Cosmetics',
-        discount: req.body.discount || '10% OFF',
-        stock: req.body.stock !== undefined ? Number(req.body.stock) : 10, 
-        reviews: [] 
-    });
-    await newProduct.save();
-    res.status(201).json(newProduct);
+    try {
+        const newProduct = new Product({
+            title: req.body.title, 
+            price: Number(req.body.price),
+            image: req.file ? `https://shrimaruti-backend.onrender.com/uploads/${req.file.filename}` : '',
+            desc: req.body.desc || "Premium quality product.",
+            category: req.body.category || 'Cosmetics',
+            discount: req.body.discount || '10% OFF',
+            stock: req.body.stock !== undefined ? Number(req.body.stock) : 10, 
+            reviews: [] 
+        });
+        await newProduct.save();
+        res.status(201).json(newProduct);
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// API: Edit/Update Product
 app.put('/api/products/:id', upload.single('image'), async (req, res) => {
     try {
-        console.log("=====================================");
-        console.log("🛠️ EDIT REQUEST RECEIVED FOR ID:", req.params.id);
-        
         const updateData = {
             title: req.body.title, 
             price: Number(req.body.price),
             discount: req.body.discount,
             desc: req.body.desc,
             category: req.body.category,
-            stock: Number(req.body.stock) // 🎯 SOLVED: Updates stock directly from edit modal form
+            stock: Number(req.body.stock) 
         };
         
         if (req.file) {
-            updateData.image = 'https://shrimaruti-backend.onrender.com/uploads/${req.file.filename}';
+            updateData.image = `https://shrimaruti-backend.onrender.com/uploads/${req.file.filename}`;
         }
         
         const updated = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true });
-        
         if(!updated) return res.status(404).json({ error: "Product not found" });
-        
         res.json({ success: true, message: "Product Updated!", product: updated });
-    } catch (err) {
-        res.status(500).json({ error: "Failed to update", details: err.message });
-    }
+    } catch (err) { res.status(500).json({ error: "Failed to update", details: err.message }); }
 });
 
 app.delete('/api/products/:id', async (req, res) => {
@@ -110,9 +96,7 @@ app.delete('/api/products/:id', async (req, res) => {
     res.json({ message: "Deleted" });
 });
 
-// ==========================================
 // --- REVIEWS SYSTEM ---
-// ==========================================
 app.post('/api/products/:id/reviews', async (req, res) => {
     const product = await Product.findById(req.params.id);
     if(product) {
@@ -122,9 +106,7 @@ app.post('/api/products/:id/reviews', async (req, res) => {
     } else res.status(404).json({ message: "Product not found" });
 });
 
-// ==========================================
 // --- ORDER FLOW & TRACKING ENGINE ---
-// ==========================================
 app.get('/api/admin/orders', async (req, res) => { res.json(await Order.find()); });
 
 app.post('/api/orders', async (req, res) => {
@@ -138,19 +120,15 @@ app.post('/api/orders', async (req, res) => {
             addressDetails: req.body.address
         });
 
-        // 🎯 OPTIONAL AUTOMATION: Order hone par core database stock deduct karne ke liye
         for (const item of req.body.items) {
             await Product.findByIdAndUpdate(item._id, { $inc: { stock: -1 } });
         }
 
         await newOrder.save();
         res.status(201).json(newOrder);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Find single order (Synced with Track UI)
 app.get('/api/orders/:id', async (req, res) => {
     try {
         const order = await Order.findOne({ orderId: req.params.id.trim() });
@@ -159,7 +137,6 @@ app.get('/api/orders/:id', async (req, res) => {
     } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
-// Customer Cancel Order Route
 app.put('/api/orders/:id/cancel', async (req, res) => {
     try {
         const updated = await Order.findOneAndUpdate(
@@ -172,7 +149,6 @@ app.put('/api/orders/:id/cancel', async (req, res) => {
     } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
-// Admin Dropdown Status Update Route
 app.put('/api/orders/:id/status', async (req, res) => {
     try {
         const updated = await Order.findOneAndUpdate(
@@ -185,7 +161,6 @@ app.put('/api/orders/:id/status', async (req, res) => {
     } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
-// Admin Delete Order Route
 app.delete('/api/orders/:id', async (req, res) => {
     try {
         const deletedOrder = await Order.findOneAndDelete({ orderId: req.params.id.trim() });
@@ -194,14 +169,9 @@ app.delete('/api/orders/:id', async (req, res) => {
     } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
-// ==========================================
-// --- DYNAMIC BANNER DATABASE (ADVANCED CANVA MODE) ---
-// ==========================================
+// --- DYNAMIC BANNER DATABASE ---
 const bannerSchema = new mongoose.Schema({ 
-    heading: String,
-    image: String, // Naya: Image save karne ke liye
-    textColor: String, // Naya: Text color
-    bgColor: String // Naya: Background color
+    heading: String, image: String, textColor: String, bgColor: String 
 });
 const Banner = mongoose.model('Banner', bannerSchema);
 
@@ -220,15 +190,13 @@ app.post('/api/banner', async (req, res) => {
     try {
         let banner = await Banner.findOne();
         if (!banner) banner = new Banner();
-        
-        // Agar admin ne text blank bhi choda hai toh wo blank save hona chahiye
         if (req.body.heading !== undefined) banner.heading = req.body.heading;
         if (req.body.textColor) banner.textColor = req.body.textColor;
         if (req.body.bgColor) banner.bgColor = req.body.bgColor;
-        if (req.body.image !== undefined) banner.image = req.body.image; // Image base64 string
-        
+        if (req.body.image !== undefined) banner.image = req.body.image; 
         await banner.save();
         res.json({ success: true, message: "Full Design Saved!" });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
 app.listen(5000, () => console.log(`🚀 Server running on port 5000`));
