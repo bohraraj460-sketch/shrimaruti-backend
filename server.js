@@ -65,11 +65,11 @@ app.post('/api/products', upload.single('image'), async (req, res) => {
     const newProduct = new Product({
         title: req.body.title, 
         price: Number(req.body.price),
-        image: req.file ?https: "//shrimaruti-backend.onrender.com" : '',
+        image: req.file ? `https://shrimaruti-backend.onrender.com/uploads/${req.file.filename}` : '',
         desc: req.body.desc || "Premium quality product.",
         category: req.body.category || 'Cosmetics',
         discount: req.body.discount || '10% OFF',
-        stock: req.body.stock !== undefined ? Number(req.body.stock) : 10, // 🎯 SOLVED: Captures admin stock input
+        stock: req.body.stock !== undefined ? Number(req.body.stock) : 10, 
         reviews: [] 
     });
     await newProduct.save();
@@ -92,7 +92,7 @@ app.put('/api/products/:id', upload.single('image'), async (req, res) => {
         };
         
         if (req.file) {
-            updateData.image = "https://shrimaruti-backend.onrender.com";
+            updateData.image = 'https://shrimaruti-backend.onrender.com/uploads/${req.file.filename}';
         }
         
         const updated = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true });
