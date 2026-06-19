@@ -65,7 +65,7 @@ app.post('/api/products', upload.single('image'), async (req, res) => {
     const newProduct = new Product({
         title: req.body.title, 
         price: Number(req.body.price),
-        image: req.file ? `http://localhost:5000/uploads/${req.file.filename}` : '',
+        image: req.file ?https: "//shrimaruti-backend.onrender.com" : '',
         desc: req.body.desc || "Premium quality product.",
         category: req.body.category || 'Cosmetics',
         discount: req.body.discount || '10% OFF',
@@ -92,7 +92,7 @@ app.put('/api/products/:id', upload.single('image'), async (req, res) => {
         };
         
         if (req.file) {
-            updateData.image = `http://localhost:5000/uploads/${req.file.filename}`;
+            updateData.image = "https://shrimaruti-backend.onrender.com";
         }
         
         const updated = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true });
